@@ -1,11 +1,12 @@
-import uvicorn;
+import uvicorn
 from dotenv import load_dotenv
 import os
-load_dotenv()
-host  = os.getenv("HOST")
+# load_dotenv()
+# host  = os.getenv("HOST")
+# print(f"Server running on {host}")
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
-        host=host,
-        port=8000
+        host="localhost",
+        port=9000
     )

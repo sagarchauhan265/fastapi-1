@@ -6,9 +6,11 @@ main_router = APIRouter()
 
 main_router.include_router(
     auth_router,
-    prefix="/auth"
+    prefix="/auth",
+    tags=["Auth"]
     )
 main_router.include_router(
     product_router,
-    prefix="/product"
+    prefix="/product",
+    tags=["Product"]
     )
