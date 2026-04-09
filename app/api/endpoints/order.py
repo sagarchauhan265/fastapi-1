@@ -28,8 +28,10 @@ async def place_order(
     db: Session = Depends(get_db),
 ):
     user_id = payload["id"]
+    user_name = payload["name"]
+    user_email = payload["email"]
     order = place_order_service(user_id, body.shipping_address, body.notes, db)
-    order_data = get_order_detail_service(user_id, order.id, db)
+    order_data = get_order_detail_service(user_id, user_name, user_email, order.id, db)
     return JSONResponse(
         status_code=201,
         content=ApiResponse(
@@ -93,8 +95,10 @@ async def cancel_order(
     db: Session = Depends(get_db),
 ):
     user_id = payload["id"]
+    user_name = payload["name"]
+    user_email = payload["email"]
     cancel_order_service(user_id, order_id, db)
-    order_data = get_order_detail_service(user_id, order_id, db)
+    order_data = get_order_detail_service(user_id, user_name, user_email, order_id, db)
     return JSONResponse(
         status_code=200,
         content=ApiResponse(
