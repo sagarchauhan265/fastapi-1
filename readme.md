@@ -15,6 +15,7 @@ pip install mysql-connector or pip install pymysql
 pip install python-multipart
 pip install pydantic-settings
 pip install passlib # FOR encryption
+pip install bandit
 
 # RUN UVICORN SERVER    
 uvicorn app.main:app --reload
