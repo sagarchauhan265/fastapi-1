@@ -10,9 +10,15 @@ class Order(Base):
     user_id = Column(Integer, nullable=False, index=True)
     status = Column(String(20), nullable=False, default="pending")
     # pending | confirmed | shipped | delivered | cancelled
+    payment_status = Column(String(20), nullable=False, default="unpaid")
+    # unpaid | paid | failed
     total_amount = Column(Integer, nullable=False)
     shipping_address = Column(String(500), nullable=True)
     notes = Column(String(500), nullable=True)
+    razorpay_order_id = Column(String(100), nullable=True, unique=True)
+    razorpay_payment_id = Column(String(100), nullable=True)
+    razorpay_signature = Column(String(500), nullable=True)
+    invoice_url = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

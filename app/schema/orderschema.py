@@ -62,6 +62,20 @@ class OrderListResponse(BaseModel):
     page: int
     page_size: int
 
+class CheckoutResponse(BaseModel):
+    order_id: int
+    razorpay_order_id: str
+    amount: int
+    currency: str
+    key_id: str
+
+
+class VerifyPaymentRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
 class UserOrderSummaryResponse(BaseModel):
     id: int
     status: str

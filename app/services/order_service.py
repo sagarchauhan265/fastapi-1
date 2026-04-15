@@ -1,11 +1,17 @@
+import razorpay
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.config.settings import settings
 from app.models.cart import CartItem
 from app.models.order import Order, OrderItem
 from app.models.product import Product
 
 CANCELLABLE_STATUSES = {"pending", "confirmed"}
+
+
+def _get_razorpay_client():
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 
 def _get_effective_price(product: Product) -> int:
@@ -14,17 +20,16 @@ def _get_effective_price(product: Product) -> int:
     return product.price
 
 
-def place_order_service(user_id: int, shipping_address: str | None, notes: str | None, db: Session) -> Order:
+def place_order_service(user_id: int, shipping_address: str | None, notes: str | None, db: Session) -> dict:
     cart_items = db.query(CartItem).filter(CartItem.user_id == user_id).all()
     if not cart_items:
         raise HTTPException(status_code=400, detail="CART_IS_EMPTY")
 
-    order_items_data = []
     total_amount = 0
 
-    # Validate stock and lock products inside the same transaction
+    # Validate cart (no stock deduction yet — happens after payment)
     for cart_item in cart_items:
-        product = db.query(Product).filter(Product.id == cart_item.product_id).with_for_update().first()
+        product = db.query(Product).filter(Product.id == cart_item.product_id).first()
         if not product:
             raise HTTPException(status_code=400, detail=f"PRODUCT_NOT_FOUND: {cart_item.product_id}")
         if product.is_active != 1:
@@ -34,52 +39,107 @@ def place_order_service(user_id: int, shipping_address: str | None, notes: str |
                 status_code=400,
                 detail=f"INSUFFICIENT_STOCK: {product.name} (available: {product.stock})",
             )
+        total_amount += _get_effective_price(product) * cart_item.quantity
 
-        unit_price = _get_effective_price(product)
-        subtotal = unit_price * cart_item.quantity
-        total_amount += subtotal
-
-        order_items_data.append({
-            "product": product,
-            "product_id": product.id,
-            "product_name": product.name,
-            "product_sku": product.sku,
-            "unit_price": unit_price,
-            "quantity": cart_item.quantity,
-            "subtotal": subtotal,
-        })
-
-    # Create order
+    # Create a pending order (no items yet)
     order = Order(
         user_id=user_id,
         status="pending",
+        payment_status="unpaid",
         total_amount=total_amount,
         shipping_address=shipping_address,
         notes=notes,
     )
     db.add(order)
-    db.flush()  # get order.id before committing
+    db.flush()
 
-    # Create order items and deduct stock atomically
-    for data in order_items_data:
-        order_item = OrderItem(
+    # Create Razorpay order (amount in paise)
+    rzp_client = _get_razorpay_client()
+    rzp_order = rzp_client.order.create({
+        "amount": total_amount * 100,
+        "currency": "INR",
+        "receipt": f"order_{order.id}",
+        "payment_capture": 1,
+    })
+
+    order.razorpay_order_id = rzp_order["id"]
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "order_id": order.id,
+        "razorpay_order_id": rzp_order["id"],
+        "amount": total_amount * 100,
+        "currency": "INR",
+        "key_id": settings.RAZORPAY_KEY_ID,
+    }
+
+
+def verify_payment_service(
+    user_id: int,
+    razorpay_order_id: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+    db: Session,
+) -> Order:
+    order = (
+        db.query(Order)
+        .filter(Order.razorpay_order_id == razorpay_order_id, Order.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="ORDER_NOT_FOUND")
+    if order.payment_status == "paid":
+        raise HTTPException(status_code=400, detail="PAYMENT_ALREADY_VERIFIED")
+
+    # Verify Razorpay signature
+    rzp_client = _get_razorpay_client()
+    try:
+        rzp_client.utility.verify_payment_signature({
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": razorpay_payment_id,
+            "razorpay_signature": razorpay_signature,
+        })
+    except Exception:
+        order.payment_status = "failed"
+        db.commit()
+        raise HTTPException(status_code=400, detail="INVALID_PAYMENT_SIGNATURE")
+
+    # Re-read cart and fulfill — lock products atomically
+    cart_items = db.query(CartItem).filter(CartItem.user_id == user_id).all()
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="CART_IS_EMPTY")
+
+    for cart_item in cart_items:
+        product = db.query(Product).filter(Product.id == cart_item.product_id).with_for_update().first()
+        if not product or product.stock < cart_item.quantity:
+            raise HTTPException(status_code=400, detail=f"STOCK_CHANGED: {cart_item.product_id}")
+
+        unit_price = _get_effective_price(product)
+        db.add(OrderItem(
             order_id=order.id,
-            product_id=data["product_id"],
-            product_name=data["product_name"],
-            product_sku=data["product_sku"],
-            unit_price=data["unit_price"],
-            quantity=data["quantity"],
-            subtotal=data["subtotal"],
-        )
-        db.add(order_item)
-        data["product"].stock -= data["quantity"]
+            product_id=product.id,
+            product_name=product.name,
+            product_sku=product.sku,
+            unit_price=unit_price,
+            quantity=cart_item.quantity,
+            subtotal=unit_price * cart_item.quantity,
+        ))
+        product.stock -= cart_item.quantity
 
-    # Clear the cart
+    # Clear cart
     db.query(CartItem).filter(CartItem.user_id == user_id).delete()
 
+    order.payment_status = "paid"
+    order.status = "confirmed"
+    order.razorpay_payment_id = razorpay_payment_id
+    order.razorpay_signature = razorpay_signature
     db.commit()
     db.refresh(order)
     return order
+
+
 
 
 def get_orders_service(user_id: int,user_name:str,user_email:str, page: int, page_size: int, db: Session) -> dict:
