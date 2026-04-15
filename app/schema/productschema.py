@@ -40,6 +40,7 @@ class ProductResponse(BaseModel):
     is_active:int
     offer_price:int
     cat_id:int
+    currency:str
     created_at: datetime
     updated_at: datetime
     @field_serializer("created_at", "updated_at")

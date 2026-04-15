@@ -86,9 +86,9 @@ def auth_login(
             success=True,
             message="Login successful",
             data=UserResponse(
-                id=result.id,
+                # id=result.id,
                 name=result.name,
-                email=result.email,
+                #  email=result.email,
                  token=token,
                 created_at=str(result.created_at),
                 updated_at=str(result.updated_at)

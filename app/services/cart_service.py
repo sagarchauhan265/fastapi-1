@@ -11,12 +11,14 @@ def _get_effective_price(product: Product) -> int:
     return product.price
 
 
-def add_to_cart_service(user_id: int, product_id: int, quantity: int, db: Session):
+def add_to_cart_service(user_id: int, product_id: int, quantity: int,cart_action:str, db: Session):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="PRODUCT_NOT_FOUND")
     if product.is_active != 1:
         raise HTTPException(status_code=400, detail="PRODUCT_NOT_ACTIVE")
+    if quantity > 1:
+        raise HTTPException(status_code=400, detail="UPDATE_MAX_QUANTITY_1")
 
     existing_item = (
         db.query(CartItem)
@@ -25,7 +27,13 @@ def add_to_cart_service(user_id: int, product_id: int, quantity: int, db: Sessio
     )
 
     if existing_item:
-        new_quantity = existing_item.quantity + quantity
+        cart_action = cart_action.lower()
+        if cart_action == "increase":
+         new_quantity = existing_item.quantity + quantity
+        elif cart_action == "decrease":
+            new_quantity = existing_item.quantity - quantity
+        else:
+            raise HTTPException(status_code=400, detail="INVALID_CART_ACTION")  
         if new_quantity > product.stock:
             raise HTTPException(status_code=400, detail="INSUFFICIENT_STOCK")
         existing_item.quantity = new_quantity
@@ -81,15 +89,16 @@ def get_cart_service(user_id: int, db: Session):
     for product, cart_item in items:         
         price = _get_effective_price(product)
         subtotal = price * cart_item.quantity
+        subdiscount = (product.price - price) * cart_item.quantity
         total += subtotal
 
         cart_items.append({
             "id": cart_item.id,
             "product_id": product.id,
             "name": product.name,             
-            "price": price,
             "quantity": cart_item.quantity,
             "subtotal": subtotal,
+            "total_discount": subdiscount, 
             "created_at": cart_item.created_at,
             "updated_at": cart_item.updated_at,
             "product": {                    
@@ -98,12 +107,13 @@ def get_cart_service(user_id: int, db: Session):
                 "cat_id": product.cat_id,           
                 "sku": product.sku,                
                 "product_image": product.product_image,  
-                "price": price,
+                "price": product.price,
                 "offer_price": product.offer_price,
                 "stock": product.stock,
                 "unit": product.unit,
                 "is_active": product.is_active,
                 "description": product.description,
+                "currency":"INR",
                 "created_at": product.created_at,
                 "updated_at": product.updated_at,
             },

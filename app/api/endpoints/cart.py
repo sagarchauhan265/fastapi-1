@@ -30,14 +30,14 @@ async def add_to_cart(
     db: Session = Depends(get_db),
 ):
     user_id = payload["id"]
-    item = add_to_cart_service(user_id, body.product_id, body.quantity, db)
+    item = add_to_cart_service(user_id, body.product_id, body.quantity,body.cart_action, db)
     product = db.query(Product).filter(Product.id == item.product_id).first()
     price = product.offer_price if product.offer_price and product.offer_price > 0 else product.price
     return JSONResponse(
         status_code=200,
         content=ApiResponse(
             success=True,
-            message="Item added to cart",
+            message="Cart updated successfully",
             data=CartItemResponse(
                 id=item.id,
                 product_id=item.product_id,

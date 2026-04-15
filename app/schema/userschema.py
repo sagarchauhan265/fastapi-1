@@ -50,10 +50,10 @@ class UserLogin(BaseModel):
 
 
     
-class UserResponse(UserBase):
-    id:int
+class UserResponse(BaseModel):
+    # id:int
     name:str
-    email:str
+    # email:str
     token: str | None = None
     created_at: str | None = None
     updated_at: str | None = None

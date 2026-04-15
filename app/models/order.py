@@ -19,7 +19,6 @@ class Order(Base):
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, nullable=False, index=True)
     product_id = Column(Integer, nullable=False)

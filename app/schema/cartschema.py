@@ -9,6 +9,8 @@ from app.schema.productschema import ProductResponse
 class AddToCartRequest(BaseModel):
     product_id: int = Field(..., gt=0)
     quantity: int = Field(..., gt=0)
+    cart_action: str = Field(...)
+
 
 
 class UpdateCartItemRequest(BaseModel):
@@ -19,9 +21,10 @@ class CartItemResponse(BaseModel):
     id: int
     product_id: int
     name: str
-    price: int
     quantity: int
     subtotal: int
+    total_discount: int | None = None
+    discount_percentage: float | None = None
     product: ProductResponse | None = None
     created_at: datetime
     updated_at: datetime

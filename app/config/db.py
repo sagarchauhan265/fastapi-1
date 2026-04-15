@@ -16,7 +16,7 @@ def check_db_connection():
             connection.execute(text("CREATE DATABASE IF NOT EXISTS ecom"))
             # connection.execute(text("ALTER TABLE category ADD COLUMN updated_at DateTime after created_at"))
             # connection.execute(text("ALTER TABLE category ADD COLUMN create_by varchar(100) after updated_at"))
-            # connection.execute(text("ALTER TABLE category ADD COLUMN update_by varchar(50) after create_by"))
+            # connection.execute(text("ALTER TABLE products ADD COLUMN currency varchar(10) after cat_id"))
         return True
     except SQLAlchemyError as e:
         print("❌ Database connection failed:", e)

@@ -15,5 +15,6 @@ class Product(Base):
     is_active = Column(Integer, nullable=False, )  # New is_active column (1 for active, 0 for inactive)
     offer_price = Column(Integer, nullable=True)  # New offer price column
     cat_id = Column(Integer, nullable=False)  # New category ID column
+    currency = Column(String(10), nullable=False, default="INR")  # New currency column
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
