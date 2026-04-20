@@ -5,6 +5,9 @@ from app.schema.bulkschema import BulkRowError, BulkUploadResult
 from passlib.context import CryptContext
 from fastapi import HTTPException
 from pydantic import ValidationError
+from app.config.redis import redis_client
+import json
+from app.schema.productschema import ProductBase, ProductResponse
 
 def product_add_service(product,db):
     if(db.query(Product).filter(Product.name == product.name).first()):
@@ -87,6 +90,13 @@ def get_product_list_service(db):
     offset = 0
     # products = db.query(Product).limit(limit).offset(offset).all()
     products = db.query(Product).all()
+    serialized_products = [
+        ProductResponse.model_validate(p).model_dump(mode="json")
+        for p in products
+    ]
+    redis_client.set("product_list_cache", json.dumps([p for p in serialized_products]),ex=60)
+    #redis_client.set("product_list_cache", str([p for p in products]), ex=300)  # Cache product IDs for 5 minutes
+
     return products
 
 

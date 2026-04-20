@@ -55,6 +55,7 @@ def place_order_service(user_id: int, shipping_address: str | None, notes: str |
 
     # Create Razorpay order (amount in paise)
     rzp_client = _get_razorpay_client()
+    print(f"Creating ",rzp_client)
     rzp_order = rzp_client.order.create({
         "amount": total_amount * 100,
         "currency": "INR",

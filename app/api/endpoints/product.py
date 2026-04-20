@@ -15,6 +15,8 @@ from app.middleware.rate_limit_middleware import limiter
 from fastapi import Request,UploadFile
 from app.middleware.verify_jwt import verify_jwt
 from app.utils.cloudinary_helper import upload_image, delete_image
+from app.config.redis import redis_client
+import json
 
 #auth_router = APIRouter(dependencies=[Depends(limiter.limit("5/minute"))]) 
 product_router = APIRouter()  # Apply rate limit to all routes in this router
@@ -178,6 +180,26 @@ async def update_product(
 
 @product_router.get("/get_product_list",response_model=ApiResponse[ProductResponse])
 async def get_product_list(request: Request, db: Session = Depends(get_db)):
+    redis_key = "product_list_cache"
+    cached_data = redis_client.get(redis_key)
+    print(cached_data)
+    if cached_data:
+        print("Cache hit for product list")
+        try:
+         product_ids = json.loads(cached_data)  # ✅ no decode
+        except json.JSONDecodeError:
+         print("Invalid cache, clearing...")
+         #redis_client.delete(redis_key)
+         #product_ids = None
+        return JSONResponse(
+            status_code=200,
+            content=ApiResponse(
+                success=True,
+                message="Product list fetched successfully (from cache)",
+                data=[ProductResponse.model_validate(p) for p in product_ids]
+            ).model_dump(mode="json", exclude_none=True)
+        )
+       
     result= get_product_list_service(db)
     return JSONResponse(
         status_code=200,

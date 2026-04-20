@@ -10,6 +10,10 @@ from app.config.db import SessionLocal, get_db
 from fastapi import Request
 from datetime import datetime, timedelta
 from jose import jwt
+from app.middleware.verify_jwt import verify_jwt
+from app.config.redis import redis_client
+from app.services.auth_service import blacklist_token
+from fastapi import status
 
 auth_router = APIRouter()
 
@@ -96,4 +100,22 @@ def auth_login(
         ).model_dump()
     )
 
-       
+
+
+@auth_router.post("/logout", response_model=ApiResponse[None],dependencies=[Depends(verify_jwt)])  
+def logout(db:Session=Depends(get_db),current_user: dict = Depends(verify_jwt)):
+    is_blaclisted = blacklist_token(db,current_user)
+    if not is_blaclisted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logout failed"
+        )
+    
+    print("User logged out successfully")
+    # Invalidate the token on client side by simply not using it anymore
+    return ApiResponse(
+        success=True,
+        status_code=status.HTTP_200_OK,
+        message="Logout successful",
+        data=None
+    )
