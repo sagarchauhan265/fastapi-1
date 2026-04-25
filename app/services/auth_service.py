@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.models.rbac import UserRole, RolePermission, Permission, Role
 from passlib.context import CryptContext
 from fastapi import HTTPException
 import re
@@ -34,6 +35,29 @@ def auth_login_service(user, db):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return db_user
+
+def get_user_roles_and_permissions(user_id: int, db) -> tuple:
+    """Returns (role_names, permission_names) for a user."""
+    user_role_rows = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+    role_ids = [ur.role_id for ur in user_role_rows]
+
+    if not role_ids:
+        return [], []
+
+    roles = db.query(Role).filter(Role.id.in_(role_ids)).all()
+    role_names = [r.name for r in roles]
+
+    rp_rows = db.query(RolePermission).filter(RolePermission.role_id.in_(role_ids)).all()
+    permission_ids = list({rp.permission_id for rp in rp_rows})
+
+    if not permission_ids:
+        return role_names, []
+
+    permissions = db.query(Permission).filter(Permission.id.in_(permission_ids)).all()
+    permission_names = [p.name for p in permissions]
+
+    return role_names, permission_names
+
 
 def blacklist_token(db,payload: dict):
     # Placeholder for any server-side logout operations if needed

@@ -4,6 +4,7 @@ from app.api.endpoints.product import product_router
 from app.api.endpoints.category import category_router
 from app.api.endpoints.cart import cart_router
 from app.api.endpoints.order import order_router
+from app.api.endpoints.admin import admin_router
 
 main_router = APIRouter()
 
@@ -32,4 +33,9 @@ main_router.include_router(
     order_router,
     prefix="/order",
     tags=["Order"]
+    )
+main_router.include_router(
+    admin_router,
+    prefix="/admin",
+    tags=["Admin"]
     )

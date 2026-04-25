@@ -1,1 +1,1 @@
-from app.models import user, category, product, cart, order
+from app.models import user, category, product, cart, order, rbac

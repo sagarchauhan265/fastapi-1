@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.config.settings import settings
 from app.schema.response import ApiResponse
-from app.services.auth_service import auth_signup_service, auth_login_service
+from app.services.auth_service import auth_signup_service, auth_login_service, get_user_roles_and_permissions
 from app.schema.userschema import UserCreate, UserLogin, UserResponse
 from app.config.db import SessionLocal, get_db
 from fastapi import Request
@@ -73,10 +73,13 @@ def auth_login(
         errors = [{"field": err["loc"][0], "message": err["msg"]} for err in e.errors()]
         raise HTTPException(status_code=422, detail=errors)
     result =  auth_login_service(data, db)
+    roles, permissions = get_user_roles_and_permissions(result.id, db)
     payload = {
         "id": result.id,
         "name": result.name,
         "email": result.email,
+        "roles": roles,
+        "permissions": permissions,
         "exp": datetime.utcnow() + timedelta(hours=6)
     }
 
