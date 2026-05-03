@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from app.config.redis import redis_client
 import json
+from math import ceil
 from app.schema.productschema import ProductBase, ProductResponse
 
 def product_add_service(product,db):
@@ -35,6 +36,7 @@ def product_add_service(product,db):
 
 def get_product_by_id_service(product_id, db):
     product = db.query(Product).filter(Product.id == product_id).first()
+    
     if not product:
         raise HTTPException(status_code=404, detail="PRODUCT_NOT_FOUND")
     return product
@@ -85,19 +87,32 @@ def update_product_service(product_id: int, update_data: dict, db):
     return product, replaced_image
 
 
-def get_product_list_service(db):
-    limit = 2
+def get_product_list_service(db,page,q,price_min,price_max):
+    limit = 5
     offset = 0
-    # products = db.query(Product).limit(limit).offset(offset).all()
-    products = db.query(Product).all()
+    total_items = db.query(Product).count()
+    total_pages = ceil(total_items / limit)
+    if(page < total_pages and page >= 1):
+        offset:int = (page -1) * limit
+    
+    query = db.query(Product)
+    if q:
+        query = query.filter(Product.name.ilike(f"%{q}%"))
+    if price_min is not None:
+        query = query.filter(Product.offer_price >= price_min)
+    if price_max is not None:
+        query = query.filter(Product.offer_price <= price_max)    
+    products = query.limit(limit).offset(offset).all()
+
+   # products = db.query(Product).all()
     serialized_products = [
         ProductResponse.model_validate(p).model_dump(mode="json")
         for p in products
     ]
-    redis_client.set("product_list_cache", json.dumps([p for p in serialized_products]),ex=60)
+    redis_client.set("product_list_cache", json.dumps([p for p in serialized_products]),ex=6)
     #redis_client.set("product_list_cache", str([p for p in products]), ex=300)  # Cache product IDs for 5 minutes
 
-    return products
+    return products, total_pages, page
 
 
 def _coerce_row(row: dict) -> dict:

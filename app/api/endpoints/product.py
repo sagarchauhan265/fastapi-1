@@ -16,6 +16,7 @@ from fastapi import Request,UploadFile
 from app.middleware.verify_jwt import verify_jwt
 from app.utils.cloudinary_helper import upload_image, delete_image
 from app.config.redis import redis_client
+from typing import Optional
 import json
 
 #auth_router = APIRouter(dependencies=[Depends(limiter.limit("5/minute"))]) 
@@ -179,7 +180,16 @@ async def update_product(
 
 
 @product_router.get("/get_product_list",response_model=ApiResponse[ProductResponse])
-async def get_product_list(request: Request, db: Session = Depends(get_db)):
+async def get_product_list(
+request: Request,
+# action:str=Query(..., min_length=1, max_length=50),
+page:int=1,
+q:Optional[str] = None,
+price_min: Optional[float] = None,
+price_max: Optional[float] = None,
+db: Session = Depends(get_db)
+):
+    print(q,page)
     redis_key = "product_list_cache"
     cached_data = redis_client.get(redis_key)
     print(cached_data)
@@ -196,16 +206,19 @@ async def get_product_list(request: Request, db: Session = Depends(get_db)):
             content=ApiResponse(
                 success=True,
                 message="Product list fetched successfully (from cache)",
+                current_page=page,
                 data=[ProductResponse.model_validate(p) for p in product_ids]
             ).model_dump(mode="json", exclude_none=True)
         )
        
-    result= get_product_list_service(db)
+    result, total_pages, page = get_product_list_service(db,page,q,price_min,price_max)
     return JSONResponse(
         status_code=200,
         content=ApiResponse(
             success=True,
             message="Product list fetched successfully",
+            current_page=page,          # ← already a field in ApiResponse
+            total_page=total_pages,
             data=[ProductResponse.model_validate(p) for p in result]
         ).model_dump(mode="json", exclude_none=True)
     )   
